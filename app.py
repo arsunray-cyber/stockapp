@@ -574,6 +574,28 @@ def add_indicators(df):
     - CCI
     - MFI (Money Flow Index)
     """
+    # Safety check: ensure we have enough data
+    if df is None or len(df) < 30:
+        if df is not None:
+            df = df.copy()
+            df["RSI"] = np.nan
+            df["SMA50"] = np.nan
+            df["SMA200"] = np.nan
+            df["EMA12"] = np.nan
+            df["EMA26"] = np.nan
+            df["MACD"] = np.nan
+            df["MACD_Signal"] = np.nan
+            df["BB_Upper"] = np.nan
+            df["BB_Middle"] = np.nan
+            df["BB_Lower"] = np.nan
+            df["ADX"] = np.nan
+            df["Stoch_K"] = np.nan
+            df["Stoch_D"] = np.nan
+            df["Williams_R"] = np.nan
+            df["CCI"] = np.nan
+            df["MFI"] = np.nan
+        return df
+
     from ta.trend import EMAIndicator, MACD, ADXIndicator, CCIIndicator
     from ta.volatility import BollingerBands
     from ta.momentum import StochasticOscillator, WilliamsRIndicator
@@ -581,48 +603,61 @@ def add_indicators(df):
     
     df = df.copy()
     
-    # RSI
-    df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-    
-    # Simple Moving Averages
-    df["SMA50"] = df["Close"].rolling(window=50).mean()
-    df["SMA200"] = df["Close"].rolling(window=200).mean()
-    
-    # Exponential Moving Averages
-    df["EMA12"] = EMAIndicator(close=df["Close"], window=12).ema_indicator()
-    df["EMA26"] = EMAIndicator(close=df["Close"], window=26).ema_indicator()
-    
-    # MACD
-    macd = MACD(close=df["Close"])
-    df["MACD"] = macd.macd()
-    df["MACD_Signal"] = macd.macd_signal()
-    
-    # Bollinger Bands
-    bb = BollingerBands(close=df["Close"])
-    df["BB_Upper"] = bb.bollinger_hband()
-    df["BB_Middle"] = bb.bollinger_mavg()
-    df["BB_Lower"] = bb.bollinger_lband()
-    
-    # ADX (Average Directional Index)
-    adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["Close"])
-    df["ADX"] = adx.adx()
-    
-    # Stochastic Oscillator
-    stoch = StochasticOscillator(high=df["High"], low=df["Low"], close=df["Close"])
-    df["Stoch_K"] = stoch.stoch()
-    df["Stoch_D"] = df["Stoch_K"].rolling(window=3).mean()
-    
-    # Williams %R
-    williams = WilliamsRIndicator(high=df["High"], low=df["Low"], close=df["Close"])
-    df["Williams_R"] = williams.williams_r()
-    
-    # CCI (Commodity Channel Index) - NOW IN ta.trend
-    cci = CCIIndicator(high=df["High"], low=df["Low"], close=df["Close"])
-    df["CCI"] = cci.cci()
-    
-    # MFI (Money Flow Index) - NOW IN ta.volume
-    mfi = MFIIndicator(high=df["High"], low=df["Low"], close=df["Close"], volume=df["Volume"])
-    df["MFI"] = mfi.money_flow_index()
+    try:
+        # RSI
+        df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
+        
+        # Simple Moving Averages
+        df["SMA50"] = df["Close"].rolling(window=50).mean()
+        df["SMA200"] = df["Close"].rolling(window=200).mean()
+        
+        # Exponential Moving Averages
+        df["EMA12"] = EMAIndicator(close=df["Close"], window=12).ema_indicator()
+        df["EMA26"] = EMAIndicator(close=df["Close"], window=26).ema_indicator()
+        
+        # MACD
+        macd = MACD(close=df["Close"])
+        df["MACD"] = macd.macd()
+        df["MACD_Signal"] = macd.macd_signal()
+        
+        # Bollinger Bands
+        bb = BollingerBands(close=df["Close"])
+        df["BB_Upper"] = bb.bollinger_hband()
+        df["BB_Middle"] = bb.bollinger_mavg()
+        df["BB_Lower"] = bb.bollinger_lband()
+        
+        # ADX (Average Directional Index)
+        adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["Close"])
+        df["ADX"] = adx.adx()
+        
+        # Stochastic Oscillator
+        stoch = StochasticOscillator(high=df["High"], low=df["Low"], close=df["Close"])
+        df["Stoch_K"] = stoch.stoch()
+        df["Stoch_D"] = df["Stoch_K"].rolling(window=3).mean()
+        
+        # Williams %R
+        williams = WilliamsRIndicator(high=df["High"], low=df["Low"], close=df["Close"])
+        df["Williams_R"] = williams.williams_r()
+        
+        # CCI (Commodity Channel Index)
+        cci = CCIIndicator(high=df["High"], low=df["Low"], close=df["Close"])
+        df["CCI"] = cci.cci()
+        
+        # MFI (Money Flow Index) - requires volume
+        if "Volume" in df.columns:
+            mfi = MFIIndicator(high=df["High"], low=df["Low"], close=df["Close"], volume=df["Volume"])
+            df["MFI"] = mfi.money_flow_index()
+        else:
+            df["MFI"] = np.nan
+            
+    except Exception as e:
+        st.warning(f"Could not calculate some indicators: {str(e)}")
+        # Ensure all columns exist even if calculation failed
+        for col in ["RSI", "SMA50", "SMA200", "EMA12", "EMA26", "MACD", "MACD_Signal", 
+                    "BB_Upper", "BB_Middle", "BB_Lower", "ADX", "Stoch_K", "Stoch_D", 
+                    "Williams_R", "CCI", "MFI"]:
+            if col not in df.columns:
+                df[col] = np.nan
     
     return df
 
