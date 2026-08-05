@@ -574,9 +574,10 @@ def add_indicators(df):
     - CCI
     - MFI (Money Flow Index)
     """
-    from ta.trend import EMAIndicator, MACD, ADXIndicator
+    from ta.trend import EMAIndicator, MACD, ADXIndicator, CCIIndicator
     from ta.volatility import BollingerBands
-    from ta.momentum import StochasticOscillator, WilliamsRIndicator, CCIIndicator, MoneyFlowIndex
+    from ta.momentum import StochasticOscillator, WilliamsRIndicator
+    from ta.volume import MFIIndicator
     
     df = df.copy()
     
@@ -615,12 +616,12 @@ def add_indicators(df):
     williams = WilliamsRIndicator(high=df["High"], low=df["Low"], close=df["Close"])
     df["Williams_R"] = williams.williams_r()
     
-    # CCI (Commodity Channel Index)
+    # CCI (Commodity Channel Index) - NOW IN ta.trend
     cci = CCIIndicator(high=df["High"], low=df["Low"], close=df["Close"])
     df["CCI"] = cci.cci()
     
-    # MFI (Money Flow Index)
-    mfi = MoneyFlowIndex(high=df["High"], low=df["Low"], close=df["Close"], volume=df["Volume"])
+    # MFI (Money Flow Index) - NOW IN ta.volume
+    mfi = MFIIndicator(high=df["High"], low=df["Low"], close=df["Close"], volume=df["Volume"])
     df["MFI"] = mfi.money_flow_index()
     
     return df
