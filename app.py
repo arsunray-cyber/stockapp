@@ -576,7 +576,7 @@ def add_indicators(df):
     """
     from ta.trend import EMAIndicator, MACD, ADXIndicator
     from ta.volatility import BollingerBands
-    from ta.momentum import StochasticOscillator, WilliamsR, CCIIndicator, MoneyFlowIndex
+    from ta.momentum import StochasticOscillator, WilliamsRIndicator, CCIIndicator, MoneyFlowIndex
     
     df = df.copy()
     
@@ -612,7 +612,7 @@ def add_indicators(df):
     df["Stoch_D"] = df["Stoch_K"].rolling(window=3).mean()
     
     # Williams %R
-    williams = WilliamsR(high=df["High"], low=df["Low"], close=df["Close"])
+    williams = WilliamsRIndicator(high=df["High"], low=df["Low"], close=df["Close"])
     df["Williams_R"] = williams.williams_r()
     
     # CCI (Commodity Channel Index)
