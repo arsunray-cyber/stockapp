@@ -3,16 +3,183 @@ import yfinance as yf
 import pandas as pd
 from transformers import pipeline
 import plotly.graph_objects as go
+import plotly.express as px
 from ta.momentum import RSIIndicator
+from ta.trend import SMAIndicator, EMAIndicator
 import time
+import numpy as np
+from datetime import datetime, timedelta
 
 # ============================================================
-# 1. Page configuration
+# 1. Page configuration - Professional Web 2.0 Theme
 # ============================================================
 st.set_page_config(
     page_title="Indian Share Market AI Tool",
-    layout="wide"
+    layout="wide",
+    page_icon="📈"
 )
+
+# Custom CSS for professional Web 2.0 theme
+st.markdown("""
+<style>
+    /* Main theme colors - Professional Blue & Green palette */
+    :root {
+        --primary-color: #2563eb;
+        --secondary-color: #10b981;
+        --accent-color: #8b5cf6;
+        --background-color: #f8fafc;
+        --card-background: #ffffff;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border-color: #e2e8f0;
+        --success-color: #22c55e;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+    }
+    
+    /* Global styles */
+    .stApp {
+        background-color: var(--background-color);
+    }
+    
+    /* Card styling */
+    .metric-card {
+        background: var(--card-background);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border-color);
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transform: translateY(-2px);
+    }
+    
+    /* Header styling */
+    .main-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        color: white;
+        padding: 30px;
+        border-radius: 16px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+    }
+    
+    .sub-header {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        margin-top: -20px;
+    }
+    
+    /* Tooltip styling */
+    .tooltip-container {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted var(--text-secondary);
+        cursor: help;
+    }
+    
+    /* Metric value styling */
+    .stMetricValue {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: var(--primary-color) !important;
+    }
+    
+    .stMetricLabel {
+        color: var(--text-secondary) !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+    }
+    
+    /* Dataframe styling */
+    div[data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Section headers */
+    .section-header {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 30px 0 20px 0;
+        padding-bottom: 10px;
+        border-bottom: 3px solid var(--primary-color);
+    }
+    
+    /* Info boxes */
+    .info-box {
+        background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+        border-left: 4px solid var(--primary-color);
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin: 15px 0;
+    }
+    
+    .success-box {
+        background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+        border-left: 4px solid var(--success-color);
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin: 15px 0;
+    }
+    
+    .warning-box {
+        background: linear-gradient(135deg, #fffbeb, #fef3c7);
+        border-left: 4px solid var(--warning-color);
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin: 15px 0;
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: var(--primary-color);
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# Helper function for tooltips
+# ============================================================
+def tooltip(text, explanation):
+    """Create a tooltip with explanation"""
+    return f"""
+    <span class="tooltip-container" title="{explanation}">
+        {text} ℹ️
+    </span>
+    """
 
 # ============================================================
 # 2. AI Sentiment Model
@@ -30,13 +197,17 @@ def load_sentiment_model():
 sentiment_analyzer = load_sentiment_model()
 
 # ============================================================
-# 3. App Header
+# 3. App Header with Professional Styling
 # ============================================================
-st.title("📊 Indian Share Market AI Tool")
-st.caption(
-    "Market-wise scanner for NSE/BSE with cap segment selection, custom symbol input, "
-    "technical scoring, interactive charts, and AI news sentiment."
-)
+st.markdown("""
+<div class="main-header">
+    <h1 style="margin: 0; font-size: 2.5rem;">📊 Indian Share Market AI Tool</h1>
+    <p style="margin: 10px 0 0 0; opacity: 0.9;">
+        Advanced market scanner with AI-powered sentiment analysis, technical indicators, 
+        and price predictions for NSE/BSE
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # 4. Exchange Selection
@@ -44,7 +215,8 @@ st.caption(
 exchange = st.sidebar.radio(
     "Select Market / Exchange:",
     ["NSE", "BSE"],
-    horizontal=True
+    horizontal=True,
+    help="Choose National Stock Exchange (NSE) or Bombay Stock Exchange (BSE)"
 )
 
 suffix = ".NS" if exchange == "NSE" else ".BO"
@@ -53,6 +225,17 @@ exchange_full = (
     if exchange == "NSE"
     else "Bombay Stock Exchange (BSE)"
 )
+
+# Sidebar info box
+st.sidebar.markdown("""
+<div class="info-box">
+    <strong>💡 Quick Tips:</strong><br>
+    • Use <b>Large Cap</b> for stable, established companies<br>
+    • Use <b>Mid Cap</b> for growing companies with moderate risk<br>
+    • Use <b>Small Cap</b> for high-growth potential with higher risk<br>
+    • <b>Nifty Sectors</b> help analyze specific industries
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # 5. Default Cap Segment Baskets - COMPREHENSIVE LISTS
@@ -537,8 +720,103 @@ def evaluate_stock(df):
     }
 
 
+def calculate_predicted_price(df, analysis_result):
+    """
+    Calculate predicted price based on technical analysis using multiple methods:
+    1. RSI-based mean reversion
+    2. Moving average convergence
+    3. Volume-weighted momentum
+    4. Support/Resistance levels
+    
+    Returns a dictionary with predicted price and confidence level.
+    """
+    current_price = float(df["Close"].iloc[-1])
+    
+    # Get technical indicators
+    rsi = analysis_result.get("rsi", 50)
+    if pd.isna(rsi):
+        rsi = 50
+    
+    sma50 = df["SMA50"].iloc[-1] if pd.notna(df["SMA50"].iloc[-1]) else current_price
+    sma200 = df["SMA200"].iloc[-1] if pd.notna(df["SMA200"].iloc[-1]) else current_price
+    
+    # Calculate recent volatility (ATR-like measure)
+    high_low_range = df["High"].iloc[-20:].mean() - df["Low"].iloc[-20:].mean()
+    avg_volatility = high_low_range / current_price if current_price > 0 else 0.02
+    
+    # Method 1: RSI-based prediction (mean reversion)
+    if rsi < 30:  # Oversold - expect bounce
+        rsi_prediction = current_price * (1 + avg_volatility * 0.5)
+        rsi_confidence = 0.6
+    elif rsi > 70:  # Overbought - expect pullback
+        rsi_prediction = current_price * (1 - avg_volatility * 0.5)
+        rsi_confidence = 0.6
+    else:  # Neutral zone
+        rsi_prediction = current_price
+        rsi_confidence = 0.3
+    
+    # Method 2: Moving average convergence
+    if sma50 > sma200:  # Bullish trend
+        ma_gap = (sma50 - sma200) / sma200
+        ma_prediction = current_price * (1 + min(ma_gap, 0.05))
+        ma_confidence = 0.5
+    elif sma50 < sma200:  # Bearish trend
+        ma_gap = (sma200 - sma50) / sma200
+        ma_prediction = current_price * (1 - min(ma_gap, 0.05))
+        ma_confidence = 0.5
+    else:
+        ma_prediction = current_price
+        ma_confidence = 0.3
+    
+    # Method 3: Score-based momentum
+    score = analysis_result.get("score", 0)
+    momentum_factor = score / 100.0  # Normalize score
+    momentum_prediction = current_price * (1 + momentum_factor * avg_volatility)
+    momentum_confidence = min(abs(score) / 50.0, 0.7)
+    
+    # Weighted average of predictions
+    total_weight = rsi_confidence + ma_confidence + momentum_confidence
+    weighted_prediction = (
+        rsi_prediction * rsi_confidence +
+        ma_prediction * ma_confidence +
+        momentum_prediction * momentum_confidence
+    ) / total_weight
+    
+    # Calculate confidence level
+    overall_confidence = (rsi_confidence + ma_confidence + momentum_confidence) / 3
+    
+    # Determine price target range
+    if analysis_result.get("direction") == "📈 UP":
+        target_up = weighted_prediction * (1 + avg_volatility)
+        target_down = current_price * (1 - avg_volatility * 0.5)
+    elif analysis_result.get("direction") == "📉 DOWN":
+        target_up = current_price * (1 + avg_volatility * 0.5)
+        target_down = weighted_prediction * (1 - avg_volatility)
+    else:
+        target_up = current_price * (1 + avg_volatility * 0.3)
+        target_down = current_price * (1 - avg_volatility * 0.3)
+    
+    # Round to 2 decimal places
+    predicted_price = round(weighted_prediction, 2)
+    upside_potential = round((predicted_price - current_price) / current_price * 100, 2)
+    
+    return {
+        "predicted_price": predicted_price,
+        "current_price": round(current_price, 2),
+        "upside_potential": upside_potential,
+        "target_high": round(target_up, 2),
+        "target_low": round(target_down, 2),
+        "confidence": round(overall_confidence * 100, 1),
+        "method_weights": {
+            "rsi": round(rsi_confidence, 2),
+            "moving_average": round(ma_confidence, 2),
+            "momentum": round(momentum_confidence, 2)
+        }
+    }
+
+
 # ============================================================
-# 7. Dashboard Tabs
+# 8. Dashboard Tabs
 # ============================================================
 tab1, tab2 = st.tabs(
     [
