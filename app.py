@@ -564,12 +564,65 @@ def clean_symbol(symbol):
 
 def add_indicators(df):
     """
-    Adds RSI, SMA50, SMA200 to price dataframe.
+    Adds comprehensive technical indicators to price dataframe:
+    - RSI, SMA50, SMA200
+    - EMA12, EMA26, MACD
+    - Bollinger Bands
+    - ADX (Trend Strength)
+    - Stochastic Oscillator
+    - Williams %R
+    - CCI
+    - MFI (Money Flow Index)
     """
+    from ta.trend import EMAIndicator, MACD, ADXIndicator
+    from ta.volatility import BollingerBands
+    from ta.momentum import StochasticOscillator, WilliamsR, CCIIndicator, MoneyFlowIndex
+    
     df = df.copy()
+    
+    # RSI
     df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
+    
+    # Simple Moving Averages
     df["SMA50"] = df["Close"].rolling(window=50).mean()
     df["SMA200"] = df["Close"].rolling(window=200).mean()
+    
+    # Exponential Moving Averages
+    df["EMA12"] = EMAIndicator(close=df["Close"], window=12).ema_indicator()
+    df["EMA26"] = EMAIndicator(close=df["Close"], window=26).ema_indicator()
+    
+    # MACD
+    macd = MACD(close=df["Close"])
+    df["MACD"] = macd.macd()
+    df["MACD_Signal"] = macd.macd_signal()
+    
+    # Bollinger Bands
+    bb = BollingerBands(close=df["Close"])
+    df["BB_Upper"] = bb.bollinger_hband()
+    df["BB_Middle"] = bb.bollinger_mavg()
+    df["BB_Lower"] = bb.bollinger_lband()
+    
+    # ADX (Average Directional Index)
+    adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["Close"])
+    df["ADX"] = adx.adx()
+    
+    # Stochastic Oscillator
+    stoch = StochasticOscillator(high=df["High"], low=df["Low"], close=df["Close"])
+    df["Stoch_K"] = stoch.stoch()
+    df["Stoch_D"] = df["Stoch_K"].rolling(window=3).mean()
+    
+    # Williams %R
+    williams = WilliamsR(high=df["High"], low=df["Low"], close=df["Close"])
+    df["Williams_R"] = williams.williams_r()
+    
+    # CCI (Commodity Channel Index)
+    cci = CCIIndicator(high=df["High"], low=df["Low"], close=df["Close"])
+    df["CCI"] = cci.cci()
+    
+    # MFI (Money Flow Index)
+    mfi = MoneyFlowIndex(high=df["High"], low=df["Low"], close=df["Close"], volume=df["Volume"])
+    df["MFI"] = mfi.money_flow_index()
+    
     return df
 
 
@@ -596,6 +649,33 @@ def evaluate_stock(df):
     sma200_curr = df["SMA200"].iloc[-1]
     sma50_prev = df["SMA50"].iloc[-2]
     sma200_prev = df["SMA200"].iloc[-2]
+
+    # Additional indicators for comprehensive analysis
+    ema12 = df["EMA12"].iloc[-1] if "EMA12" in df.columns else None
+    ema26 = df["EMA26"].iloc[-1] if "EMA26" in df.columns else None
+    macd = df["MACD"].iloc[-1] if "MACD" in df.columns else None
+    macd_signal = df["MACD_Signal"].iloc[-1] if "MACD_Signal" in df.columns else None
+    
+    # Bollinger Bands
+    bb_upper = df["BB_Upper"].iloc[-1] if "BB_Upper" in df.columns else None
+    bb_lower = df["BB_Lower"].iloc[-1] if "BB_Lower" in df.columns else None
+    bb_middle = df["BB_Middle"].iloc[-1] if "BB_Middle" in df.columns else None
+    
+    # ADX for trend strength
+    adx = df["ADX"].iloc[-1] if "ADX" in df.columns else None
+    
+    # Stochastic Oscillator
+    stoch_k = df["Stoch_K"].iloc[-1] if "Stoch_K" in df.columns else None
+    stoch_d = df["Stoch_D"].iloc[-1] if "Stoch_D" in df.columns else None
+    
+    # Williams %R
+    williams_r = df["Williams_R"].iloc[-1] if "Williams_R" in df.columns else None
+    
+    # CCI
+    cci = df["CCI"].iloc[-1] if "CCI" in df.columns else None
+    
+    # MFI (Money Flow Index)
+    mfi = df["MFI"].iloc[-1] if "MFI" in df.columns else None
 
     price_change_pct = (
         ((current_price - prev_price) / prev_price) * 100
@@ -650,6 +730,129 @@ def evaluate_stock(df):
         elif current_rsi <= 20:
             signals.append("🧊 Extremely oversold")
             score += 10
+
+    # --------------------------------------------------------
+    # MACD signals
+    # --------------------------------------------------------
+    if pd.notna(macd) and pd.notna(macd_signal):
+        if macd > macd_signal and macd > 0:
+            signals.append("📊 MACD Bullish Crossover")
+            score += 20
+        elif macd < macd_signal and macd < 0:
+            signals.append("📉 MACD Bearish Crossover")
+            score -= 20
+        
+        # MACD divergence
+        if macd > 0 and macd_signal > 0:
+            signals.append("📈 MACD in Positive Territory")
+            score += 10
+        elif macd < 0 and macd_signal < 0:
+            signals.append("📉 MACD in Negative Territory")
+            score -= 10
+
+    # --------------------------------------------------------
+    # EMA Crossover (12/26)
+    # --------------------------------------------------------
+    if pd.notna(ema12) and pd.notna(ema26):
+        if ema12 > ema26:
+            signals.append("⚡ Bullish EMA Cross (12>26)")
+            score += 15
+        elif ema12 < ema26:
+            signals.append("⚠️ Bearish EMA Cross (12<26)")
+            score -= 15
+
+    # --------------------------------------------------------
+    # Bollinger Bands signals
+    # --------------------------------------------------------
+    if pd.notna(bb_upper) and pd.notna(bb_lower) and pd.notna(bb_middle):
+        if current_price > bb_upper:
+            signals.append("🔥 Price breaking above Upper BB")
+            score += 15
+        elif current_price < bb_lower:
+            signals.append("🩸 Price breaking below Lower BB")
+            score -= 15
+        elif current_price < bb_middle and current_price > bb_lower:
+            signals.append("📉 Price near lower band - potential bounce")
+            score += 10
+        elif current_price > bb_middle and current_price < bb_upper:
+            signals.append("📈 Price near upper band - potential resistance")
+            score -= 10
+
+    # --------------------------------------------------------
+    # Stochastic Oscillator signals
+    # --------------------------------------------------------
+    if pd.notna(stoch_k) and pd.notna(stoch_d):
+        if stoch_k > 80 and stoch_d > 80:
+            signals.append("🥵 Stochastic Overbought")
+            score -= 15
+        elif stoch_k < 20 and stoch_d < 20:
+            signals.append("🧊 Stochastic Oversold")
+            score += 15
+        
+        if stoch_k > stoch_d and stoch_k < 80:
+            signals.append("⚡ Stochastic Bullish Cross")
+            score += 15
+        elif stoch_k < stoch_d and stoch_k > 20:
+            signals.append("⚠️ Stochastic Bearish Cross")
+            score -= 15
+
+    # --------------------------------------------------------
+    # Williams %R signals
+    # --------------------------------------------------------
+    if pd.notna(williams_r):
+        if williams_r > -20:
+            signals.append("🥵 Williams %R Overbought")
+            score -= 10
+        elif williams_r < -80:
+            signals.append("🧊 Williams %R Oversold")
+            score += 10
+
+    # --------------------------------------------------------
+    # CCI signals
+    # --------------------------------------------------------
+    if pd.notna(cci):
+        if cci > 100:
+            signals.append("🔥 CCI Strong Bullish")
+            score += 15
+        elif cci < -100:
+            signals.append("🩸 CCI Strong Bearish")
+            score -= 15
+        elif cci > 0:
+            signals.append("📈 CCI Positive Momentum")
+            score += 5
+        elif cci < 0:
+            signals.append("📉 CCI Negative Momentum")
+            score -= 5
+
+    # --------------------------------------------------------
+    # MFI (Money Flow Index) signals
+    # --------------------------------------------------------
+    if pd.notna(mfi):
+        if mfi > 80:
+            signals.append("💰 MFI Overbought (Money flowing out)")
+            score -= 15
+        elif mfi < 20:
+            signals.append("💰 MFI Oversold (Money flowing in)")
+            score += 15
+        elif mfi > 50:
+            signals.append("💰 MFI Bullish Money Flow")
+            score += 10
+        elif mfi < 50:
+            signals.append("💰 MFI Bearish Money Flow")
+            score -= 10
+
+    # --------------------------------------------------------
+    # ADX Trend Strength
+    # --------------------------------------------------------
+    if pd.notna(adx):
+        if adx > 25:
+            signals.append(f"💪 Strong Trend (ADX: {adx:.1f})")
+            if ema12 and ema26 and ema12 > ema26:
+                score += 15
+            elif ema12 and ema26 and ema12 < ema26:
+                score -= 15
+        else:
+            signals.append("📊 Weak/No Clear Trend")
 
     # --------------------------------------------------------
     # Trend / Moving average signals
@@ -826,18 +1029,28 @@ tab1, tab2 = st.tabs(
 )
 
 # ============================================================
-# TAB 1: Single Stock Analysis
+# TAB 1: Single Stock Analysis - Enhanced with Comprehensive Technical Analysis
 # ============================================================
 with tab1:
-    st.subheader("Individual Stock Diagnostic Panel")
-
+    st.subheader("🎯 Individual Stock Diagnostic Panel")
+    
+    # Tooltip helper function
+    def tooltip(text, explanation):
+        return f"""
+        <div class="tooltip-container">
+            {text}
+            <span class="tooltip-text">{explanation}</span>
+        </div>
+        """
+    
     t_col1, t_col2 = st.columns(2)
 
     with t_col1:
         ticker_input = (
             st.text_input(
                 f"Enter {exchange} Stock Symbol:",
-                value="RELIANCE"
+                value="RELIANCE",
+                help=tooltip("Stock Symbol", "The trading symbol of the company on NSE (.NS) or BSE (.BO)")
             )
             .upper()
             .strip()
@@ -846,7 +1059,8 @@ with tab1:
     with t_col2:
         time_period = st.selectbox(
             "Select Historical Data Period:",
-            ["1 Month", "3 Months", "6 Months", "1 Year"]
+            ["1 Month", "3 Months", "6 Months", "1 Year", "2 Years"],
+            help=tooltip("Time Period", "Historical data range for technical analysis")
         )
 
     period_mapping = {
@@ -854,16 +1068,17 @@ with tab1:
         "3 Months": "3mo",
         "6 Months": "6mo",
         "1 Year": "1y",
+        "2 Years": "2y",
     }
 
     yf_period = period_mapping[time_period]
     full_ticker = f"{ticker_input}{suffix}"
 
-    if st.button("Analyze Stock", key="btn_deep"):
+    if st.button("🔍 Analyze Stock", key="btn_deep", type="primary"):
         if not ticker_input:
             st.error("Please enter a stock symbol.")
         else:
-            with st.spinner(f"Fetching data tracks for {ticker_input}..."):
+            with st.spinner(f"Fetching comprehensive data tracks for {ticker_input}..."):
                 try:
                     stock = yf.Ticker(full_ticker)
                     hist_data = stock.history(period=yf_period)
@@ -874,151 +1089,600 @@ with tab1:
                             f"No data found. Please check if the {exchange} symbol is valid."
                         )
                     else:
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.markdown(
-                                f"#### Price Channels: {info.get('longName', ticker_input)}"
-                            )
-
-                            hist_data["MA20"] = (
-                                hist_data["Close"].rolling(window=20).mean()
-                            )
-                            hist_data["MA50"] = (
-                                hist_data["Close"].rolling(window=50).mean()
-                            )
-
-                            fig = go.Figure()
-
-                            fig.add_trace(
-                                go.Candlestick(
+                        # Add all technical indicators
+                        hist_data = add_indicators(hist_data)
+                        analysis = evaluate_stock(hist_data)
+                        predicted = calculate_predicted_price(hist_data, analysis)
+                        
+                        current_price = float(hist_data["Close"].iloc[-1])
+                        
+                        # ===================== TOP SECTION: Key Metrics with Tooltips =====================
+                        st.markdown("### 📊 Key Stock Fundamentals")
+                        
+                        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
+                        
+                        f_col1.metric(
+                            label=tooltip("Current Price", "Latest traded price"),
+                            value=f"₹{info.get('currentPrice', current_price):.2f}" if info.get('currentPrice') else f"₹{current_price:.2f}",
+                            delta=f"{analysis['change_pct']:.2f}%"
+                        )
+                        
+                        f_col2.metric(
+                            label=tooltip("P/E Ratio", "Price-to-Earnings ratio - valuation metric"),
+                            value=f"{round(info.get('trailingPE', 0), 2)}" if info.get('trailingPE') else "N/A"
+                        )
+                        
+                        f_col3.metric(
+                            label=tooltip("Market Cap", "Total market value of company's shares"),
+                            value=f"₹{round(info.get('marketCap', 0) / 10000000, 2):,} Cr" if info.get("marketCap") else "N/A"
+                        )
+                        
+                        f_col4.metric(
+                            label=tooltip("RSI (14)", "Relative Strength Index - momentum oscillator (0-100)"),
+                            value=f"{round(float(analysis['rsi']), 1)}" if pd.notna(analysis['rsi']) else "N/A",
+                            delta="Overbought" if pd.notna(analysis['rsi']) and analysis['rsi'] > 70 else "Oversold" if pd.notna(analysis['rsi']) and analysis['rsi'] < 30 else "Neutral"
+                        )
+                        
+                        f_col5.metric(
+                            label=tooltip("Signal Score", "Composite technical score (-100 to +100)"),
+                            value=f"{analysis['score']}",
+                            delta=analysis['direction']
+                        )
+                        
+                        # ===================== PRICE PREDICTIONS SECTION =====================
+                        st.markdown("### 🎯 AI Price Predictions")
+                        
+                        pred_col1, pred_col2, pred_col3 = st.columns(3)
+                        
+                        with pred_col1:
+                            st.markdown("""
+                            <div class="metric-card" style="background: linear-gradient(135deg, #fef3c7, #fde68a);">
+                                <h4 style="margin:0; color: #92400e;">📈 Short-Term (1-2 Weeks)</h4>
+                                <p style="font-size: 2rem; font-weight: bold; margin: 10px 0; color: #78350f;">₹{:.2f}</p>
+                                <p style="margin: 5px 0; color: #92400e;">Target Range: ₹{:.2f} - ₹{:.2f}</p>
+                                <p style="margin: 5px 0; font-size: 0.9rem; color: #78350f;">Confidence: {:.0f}%</p>
+                            </div>
+                            """.format(
+                                predicted['predicted_price'],
+                                predicted['target_low'],
+                                predicted['target_high'],
+                                predicted['confidence']
+                            ), unsafe_allow_html=True)
+                        
+                        with pred_col2:
+                            # Mid-term prediction (adjust based on trend)
+                            mid_term_factor = 1 + (analysis['score'] / 200)  # Adjusted factor
+                            mid_term_price = current_price * mid_term_factor
+                            mid_term_high = current_price * (mid_term_factor + 0.05)
+                            mid_term_low = current_price * (mid_term_factor - 0.05)
+                            
+                            st.markdown("""
+                            <div class="metric-card" style="background: linear-gradient(135deg, #dbeafe, #bfdbfe);">
+                                <h4 style="margin:0; color: #1e40af;">📊 Mid-Term (1-3 Months)</h4>
+                                <p style="font-size: 2rem; font-weight: bold; margin: 10px 0; color: #1e3a8a;">₹{:.2f}</p>
+                                <p style="margin: 5px 0; color: #1e40af;">Target Range: ₹{:.2f} - ₹{:.2f}</p>
+                                <p style="margin: 5px 0; font-size: 0.9rem; color: #1e40af;">Based on Trend Analysis</p>
+                            </div>
+                            """.format(
+                                mid_term_price,
+                                mid_term_low,
+                                mid_term_high
+                            ), unsafe_allow_html=True)
+                        
+                        with pred_col3:
+                            # Long-term prediction (based on fundamentals and long-term trend)
+                            lt_factor = 1 + (analysis['score'] / 100) * 0.1  # Conservative long-term
+                            lt_price = current_price * lt_factor
+                            lt_high = current_price * (lt_factor + 0.1)
+                            lt_low = current_price * max(0.8, lt_factor - 0.1)
+                            
+                            st.markdown("""
+                            <div class="metric-card" style="background: linear-gradient(135deg, #d1fae5, #a7f3d0);">
+                                <h4 style="margin:0; color: #065f46;">📉 Long-Term (6-12 Months)</h4>
+                                <p style="font-size: 2rem; font-weight: bold; margin: 10px 0; color: #064e3b;">₹{:.2f}</p>
+                                <p style="margin: 5px 0; color: #065f46;">Target Range: ₹{:.2f} - ₹{:.2f}</p>
+                                <p style="margin: 5px 0; font-size: 0.9rem; color: #065f46;">Fundamental + Technical</p>
+                            </div>
+                            """.format(
+                                lt_price,
+                                lt_low,
+                                lt_high
+                            ), unsafe_allow_html=True)
+                        
+                        # ===================== MAIN CHARTS SECTION =====================
+                        st.markdown("### 📈 Technical Analysis Charts")
+                        
+                        chart_tab1, chart_tab2, chart_tab3, chart_tab4 = st.tabs([
+                            "Price & Moving Averages",
+                            "Volume Analysis",
+                            "Oscillators Dashboard",
+                            "Sector Comparison"
+                        ])
+                        
+                        with chart_tab1:
+                            # Main price chart with multiple indicators
+                            fig_price = go.Figure()
+                            
+                            # Candlestick
+                            fig_price.add_trace(go.Candlestick(
+                                x=hist_data.index,
+                                open=hist_data["Open"],
+                                high=hist_data["High"],
+                                low=hist_data["Low"],
+                                close=hist_data["Close"],
+                                name="Price",
+                                increasing_line_color='#10b981',
+                                decreasing_line_color='#ef4444'
+                            ))
+                            
+                            # Moving Averages
+                            if "SMA50" in hist_data.columns and pd.notna(hist_data["SMA50"]).any():
+                                fig_price.add_trace(go.Scatter(
                                     x=hist_data.index,
-                                    open=hist_data["Open"],
-                                    high=hist_data["High"],
-                                    low=hist_data["Low"],
-                                    close=hist_data["Close"],
-                                    name="Price",
-                                )
-                            )
-
-                            fig.add_trace(
-                                go.Scatter(
+                                    y=hist_data["SMA50"],
+                                    name="SMA 50",
+                                    line=dict(color="#f59e0b", width=2)
+                                ))
+                            
+                            if "SMA200" in hist_data.columns and pd.notna(hist_data["SMA200"]).any():
+                                fig_price.add_trace(go.Scatter(
                                     x=hist_data.index,
-                                    y=hist_data["MA20"],
-                                    name="20 Day MA",
-                                    line=dict(color="orange", width=1.5),
-                                )
-                            )
-
-                            fig.add_trace(
-                                go.Scatter(
+                                    y=hist_data["SMA200"],
+                                    name="SMA 200",
+                                    line=dict(color="#8b5cf6", width=2)
+                                ))
+                            
+                            if "EMA12" in hist_data.columns and pd.notna(hist_data["EMA12"]).any():
+                                fig_price.add_trace(go.Scatter(
                                     x=hist_data.index,
-                                    y=hist_data["MA50"],
-                                    name="50 Day MA",
-                                    line=dict(color="blue", width=1.5),
-                                )
+                                    y=hist_data["EMA12"],
+                                    name="EMA 12",
+                                    line=dict(color="#06b6d4", width=1.5, dash='dash')
+                                ))
+                            
+                            # Bollinger Bands
+                            if "BB_Upper" in hist_data.columns and pd.notna(hist_data["BB_Upper"]).any():
+                                fig_price.add_trace(go.Scatter(
+                                    x=hist_data.index,
+                                    y=hist_data["BB_Upper"],
+                                    name="BB Upper",
+                                    line=dict(color="#ef4444", width=1, dash='dot'),
+                                    fill=None
+                                ))
+                                fig_price.add_trace(go.Scatter(
+                                    x=hist_data.index,
+                                    y=hist_data["BB_Lower"],
+                                    name="BB Lower",
+                                    line=dict(color="#10b981", width=1, dash='dot'),
+                                    fill='tonexty'
+                                ))
+                            
+                            fig_price.update_layout(
+                                title="Price Action with Moving Averages & Bollinger Bands",
+                                xaxis_rangeslider_visible=False,
+                                height=500,
+                                template="plotly_white",
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02)
                             )
-
-                            fig.update_layout(
+                            
+                            st.plotly_chart(fig_price, use_container_width=True)
+                        
+                        with chart_tab2:
+                            # Volume chart
+                            fig_vol = go.Figure()
+                            
+                            colors = ['#10b981' if hist_data["Close"].iloc[i] >= hist_data["Open"].iloc[i] else '#ef4444' 
+                                     for i in range(len(hist_data))]
+                            
+                            fig_vol.add_trace(go.Bar(
+                                x=hist_data.index,
+                                y=hist_data["Volume"],
+                                name="Volume",
+                                marker_color=colors
+                            ))
+                            
+                            # Volume MA
+                            vol_ma = hist_data["Volume"].rolling(window=20).mean()
+                            fig_vol.add_trace(go.Scatter(
+                                x=hist_data.index,
+                                y=vol_ma,
+                                name="Volume MA (20)",
+                                line=dict(color="#f59e0b", width=2)
+                            ))
+                            
+                            fig_vol.update_layout(
+                                title="Volume Analysis",
                                 xaxis_rangeslider_visible=False,
                                 height=400,
-                                margin=dict(l=20, r=20, t=20, b=20),
+                                template="plotly_white"
                             )
-
-                            st.plotly_chart(fig, use_container_width=True)
-
-                            st.markdown("### Key Stock Fundamentals")
-
-                            f_col1, f_col2, f_col3 = st.columns(3)
-
-                            f_col1.metric(
-                                "Current Price",
-                                f"₹{info.get('currentPrice', 'N/A')}"
-                            )
-
-                            f_col2.metric(
-                                "Trailing P/E Ratio",
-                                f"{round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 'N/A'}"
-                            )
-
-                            f_col3.metric(
-                                "Market Cap (Cr)",
-                                f"₹{round(info.get('marketCap', 0) / 10000000, 2):,}"
-                                if info.get("marketCap")
-                                else "N/A"
-                            )
-
-                        with col2:
-                            st.markdown("#### AI News Sentiment Engine")
-
-                            news_list = stock.news
-
-                            if not news_list:
-                                st.info(
-                                    "No recent headlines found for this ticker to process."
+                            
+                            st.plotly_chart(fig_vol, use_container_width=True)
+                        
+                        with chart_tab3:
+                            # Oscillators dashboard
+                            osc_col1, osc_col2 = st.columns(2)
+                            
+                            with osc_col1:
+                                # RSI Chart
+                                fig_rsi = go.Figure()
+                                
+                                fig_rsi.add_trace(go.Scatter(
+                                    x=hist_data.index,
+                                    y=hist_data["RSI"],
+                                    name="RSI",
+                                    line=dict(color="#8b5cf6", width=2)
+                                ))
+                                
+                                # Overbought/Oversold lines
+                                fig_rsi.add_hline(y=70, line_dash="dash", line_color="#ef4444", annotation_text="Overbought")
+                                fig_rsi.add_hline(y=30, line_dash="dash", line_color="#10b981", annotation_text="Oversold")
+                                fig_rsi.add_hline(y=50, line_dash="dot", line_color="#6b7280")
+                                
+                                fig_rsi.update_layout(
+                                    title="RSI (Relative Strength Index)",
+                                    xaxis_rangeslider_visible=False,
+                                    height=300,
+                                    template="plotly_white",
+                                    yaxis=dict(range=[0, 100])
                                 )
-                            else:
-                                positive_count = 0
-                                negative_count = 0
-
-                                st.markdown("**Latest Headlines Analysis:**")
-
-                                for article in news_list[:4]:
-                                    if not isinstance(article, dict):
-                                        continue
-
-                                    title = article.get("title", "")
-                                    publisher = article.get("publisher", "Unknown Source")
-
-                                    # Some yfinance news structures vary,
-                                    # so try fallback title extraction.
-                                    if not title and isinstance(article.get("content"), dict):
-                                        title = article.get("content", {}).get("title", "")
-
-                                    if not title:
-                                        continue
-
-                                    result = sentiment_analyzer(title)[0]
-                                    label = result["label"].lower()
-                                    score = round(result["score"] * 100, 1)
-
-                                    if "pos" in label:
-                                        bg_color = "#e1f5fe"
-                                        badge = "🟢 POSITIVE"
-                                        positive_count += 1
-                                    elif "neg" in label:
-                                        bg_color = "#ffebee"
-                                        badge = "🔴 NEGATIVE"
-                                        negative_count += 1
-                                    else:
-                                        bg_color = "#f5f5f5"
-                                        badge = "⚪ NEUTRAL"
-
-                                    st.markdown(
-                                        f"""
-                                        <div style="background-color:{bg_color}; padding:10px; border-radius:5px; margin-bottom:10px;">
-                                            <small style="color:gray;">{publisher}</small><br>
-                                            <strong>{title}</strong><br>
-                                            <span style="font-size:12px; font-weight:bold;">
-                                                AI Assessment: {badge} ({score}%)
-                                            </span>
-                                        </div>
-                                        """,
-                                        unsafe_allow_html=True,
+                                
+                                st.plotly_chart(fig_rsi, use_container_width=True)
+                            
+                            with osc_col2:
+                                # MACD Chart
+                                if "MACD" in hist_data.columns and "MACD_Signal" in hist_data.columns:
+                                    fig_macd = go.Figure()
+                                    
+                                    fig_macd.add_trace(go.Scatter(
+                                        x=hist_data.index,
+                                        y=hist_data["MACD"],
+                                        name="MACD",
+                                        line=dict(color="#06b6d4", width=2)
+                                    ))
+                                    
+                                    fig_macd.add_trace(go.Scatter(
+                                        x=hist_data.index,
+                                        y=hist_data["MACD_Signal"],
+                                        name="Signal",
+                                        line=dict(color="#f59e0b", width=2)
+                                    ))
+                                    
+                                    # Histogram
+                                    macd_hist = hist_data["MACD"] - hist_data["MACD_Signal"]
+                                    fig_macd.add_trace(go.Bar(
+                                        x=hist_data.index,
+                                        y=macd_hist,
+                                        name="Histogram",
+                                        marker_color=['#10b981' if v > 0 else '#ef4444' for v in macd_hist],
+                                        opacity=0.5
+                                    ))
+                                    
+                                    fig_macd.update_layout(
+                                        title="MACD (Moving Average Convergence Divergence)",
+                                        xaxis_rangeslider_visible=False,
+                                        height=300,
+                                        template="plotly_white"
                                     )
-
-                                st.markdown("---")
-                                st.markdown("### 🤖 Final AI Sentiment Scorecard")
-
-                                if positive_count > negative_count:
-                                    st.success("Overall Short-Term Sentiment: **BULLISH**")
-                                elif negative_count > negative_count:
-                                    st.error("Overall Short-Term Sentiment: **BEARISH**")
+                                    
+                                    st.plotly_chart(fig_macd, use_container_width=True)
+                        
+                        with chart_tab4:
+                            # Additional oscillators
+                            more_osc_col1, more_osc_col2 = st.columns(2)
+                            
+                            with more_osc_col1:
+                                # Stochastic
+                                if "Stoch_K" in hist_data.columns and "Stoch_D" in hist_data.columns:
+                                    fig_stoch = go.Figure()
+                                    
+                                    fig_stoch.add_trace(go.Scatter(
+                                        x=hist_data.index,
+                                        y=hist_data["Stoch_K"],
+                                        name="%K",
+                                        line=dict(color="#06b6d4", width=2)
+                                    ))
+                                    
+                                    fig_stoch.add_trace(go.Scatter(
+                                        x=hist_data.index,
+                                        y=hist_data["Stoch_D"],
+                                        name="%D",
+                                        line=dict(color="#f59e0b", width=2)
+                                    ))
+                                    
+                                    fig_stoch.add_hline(y=80, line_dash="dash", line_color="#ef4444")
+                                    fig_stoch.add_hline(y=20, line_dash="dash", line_color="#10b981")
+                                    
+                                    fig_stoch.update_layout(
+                                        title="Stochastic Oscillator",
+                                        xaxis_rangeslider_visible=False,
+                                        height=300,
+                                        template="plotly_white",
+                                        yaxis=dict(range=[0, 100])
+                                    )
+                                    
+                                    st.plotly_chart(fig_stoch, use_container_width=True)
+                            
+                            with more_osc_col2:
+                                # Williams %R or CCI
+                                if "Williams_R" in hist_data.columns:
+                                    fig_williams = go.Figure()
+                                    
+                                    fig_williams.add_trace(go.Scatter(
+                                        x=hist_data.index,
+                                        y=hist_data["Williams_R"],
+                                        name="Williams %R",
+                                        line=dict(color="#8b5cf6", width=2)
+                                    ))
+                                    
+                                    fig_williams.add_hline(y=-20, line_dash="dash", line_color="#ef4444")
+                                    fig_williams.add_hline(y=-80, line_dash="dash", line_color="#10b981")
+                                    
+                                    fig_williams.update_layout(
+                                        title="Williams %R",
+                                        xaxis_rangeslider_visible=False,
+                                        height=300,
+                                        template="plotly_white",
+                                        yaxis=dict(range=[-100, 0])
+                                    )
+                                    
+                                    st.plotly_chart(fig_williams, use_container_width=True)
+                        
+                        # ===================== TECHNICAL INDICATORS SUMMARY TABLE =====================
+                        st.markdown("### 📋 Comprehensive Technical Indicators Summary")
+                        
+                        tech_col1, tech_col2 = st.columns(2)
+                        
+                        with tech_col1:
+                            st.markdown("""
+                            <div class="metric-card">
+                                <h4 style="color: var(--primary-color);">📊 Trend Indicators</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            trend_data = []
+                            
+                            # SMA signals
+                            sma50_val = hist_data["SMA50"].iloc[-1] if "SMA50" in hist_data.columns else None
+                            sma200_val = hist_data["SMA200"].iloc[-1] if "SMA200" in hist_data.columns else None
+                            
+                            if pd.notna(sma50_val):
+                                trend_data.append({
+                                    "Indicator": "SMA 50",
+                                    "Value": f"₹{sma50_val:.2f}",
+                                    "Signal": "Bullish" if current_price > sma50_val else "Bearish"
+                                })
+                            
+                            if pd.notna(sma200_val):
+                                trend_data.append({
+                                    "Indicator": "SMA 200",
+                                    "Value": f"₹{sma200_val:.2f}",
+                                    "Signal": "Bullish" if current_price > sma200_val else "Bearish"
+                                })
+                            
+                            # EMA signals
+                            ema12_val = hist_data["EMA12"].iloc[-1] if "EMA12" in hist_data.columns else None
+                            ema26_val = hist_data["EMA26"].iloc[-1] if "EMA26" in hist_data.columns else None
+                            
+                            if pd.notna(ema12_val):
+                                trend_data.append({
+                                    "Indicator": "EMA 12",
+                                    "Value": f"₹{ema12_val:.2f}",
+                                    "Signal": "Bullish" if current_price > ema12_val else "Bearish"
+                                })
+                            
+                            if pd.notna(ema26_val):
+                                trend_data.append({
+                                    "Indicator": "EMA 26",
+                                    "Value": f"₹{ema26_val:.2f}",
+                                    "Signal": "Bullish" if current_price > ema26_val else "Bearish"
+                                })
+                            
+                            # MACD
+                            macd_val = hist_data["MACD"].iloc[-1] if "MACD" in hist_data.columns else None
+                            macd_sig = hist_data["MACD_Signal"].iloc[-1] if "MACD_Signal" in hist_data.columns else None
+                            
+                            if pd.notna(macd_val) and pd.notna(macd_sig):
+                                trend_data.append({
+                                    "Indicator": "MACD",
+                                    "Value": f"{macd_val:.2f}",
+                                    "Signal": "Bullish" if macd_val > macd_sig else "Bearish"
+                                })
+                            
+                            trend_df = pd.DataFrame(trend_data)
+                            st.dataframe(trend_df, use_container_width=True, hide_index=True)
+                        
+                        with tech_col2:
+                            st.markdown("""
+                            <div class="metric-card">
+                                <h4 style="color: var(--secondary-color);">📈 Momentum Indicators</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            momentum_data = []
+                            
+                            # RSI
+                            rsi_val = hist_data["RSI"].iloc[-1] if "RSI" in hist_data.columns else None
+                            if pd.notna(rsi_val):
+                                if rsi_val > 70:
+                                    rsi_signal = "Overbought"
+                                elif rsi_val < 30:
+                                    rsi_signal = "Oversold"
                                 else:
-                                    st.warning("Overall Short-Term Sentiment: **NEUTRAL / MIXED**")
-
+                                    rsi_signal = "Neutral"
+                                momentum_data.append({
+                                    "Indicator": "RSI (14)",
+                                    "Value": f"{rsi_val:.2f}",
+                                    "Signal": rsi_signal
+                                })
+                            
+                            # Stochastic
+                            stoch_k = hist_data["Stoch_K"].iloc[-1] if "Stoch_K" in hist_data.columns else None
+                            stoch_d = hist_data["Stoch_D"].iloc[-1] if "Stoch_D" in hist_data.columns else None
+                            
+                            if pd.notna(stoch_k):
+                                if stoch_k > 80:
+                                    stoch_signal = "Overbought"
+                                elif stoch_k < 20:
+                                    stoch_signal = "Oversold"
+                                else:
+                                    stoch_signal = "Neutral"
+                                momentum_data.append({
+                                    "Indicator": "Stochastic %K",
+                                    "Value": f"{stoch_k:.2f}",
+                                    "Signal": stoch_signal
+                                })
+                            
+                            # Williams %R
+                            williams = hist_data["Williams_R"].iloc[-1] if "Williams_R" in hist_data.columns else None
+                            if pd.notna(williams):
+                                if williams > -20:
+                                    will_signal = "Overbought"
+                                elif williams < -80:
+                                    will_signal = "Oversold"
+                                else:
+                                    will_signal = "Neutral"
+                                momentum_data.append({
+                                    "Indicator": "Williams %R",
+                                    "Value": f"{williams:.2f}",
+                                    "Signal": will_signal
+                                })
+                            
+                            # CCI
+                            cci_val = hist_data["CCI"].iloc[-1] if "CCI" in hist_data.columns else None
+                            if pd.notna(cci_val):
+                                if cci_val > 100:
+                                    cci_signal = "Overbought"
+                                elif cci_val < -100:
+                                    cci_signal = "Oversold"
+                                else:
+                                    cci_signal = "Neutral"
+                                momentum_data.append({
+                                    "Indicator": "CCI",
+                                    "Value": f"{cci_val:.2f}",
+                                    "Signal": cci_signal
+                                })
+                            
+                            # MFI
+                            mfi_val = hist_data["MFI"].iloc[-1] if "MFI" in hist_data.columns else None
+                            if pd.notna(mfi_val):
+                                if mfi_val > 80:
+                                    mfi_signal = "Overbought"
+                                elif mfi_val < 20:
+                                    mfi_signal = "Oversold"
+                                else:
+                                    mfi_signal = "Neutral"
+                                momentum_data.append({
+                                    "Indicator": "MFI",
+                                    "Value": f"{mfi_val:.2f}",
+                                    "Signal": mfi_signal
+                                })
+                            
+                            momentum_df = pd.DataFrame(momentum_data)
+                            st.dataframe(momentum_df, use_container_width=True, hide_index=True)
+                        
+                        # ===================== DETECTED SIGNALS =====================
+                        st.markdown("### 🚨 Detected Technical Signals")
+                        
+                        if analysis["signals"]:
+                            signals_display = ""
+                            for signal in analysis["signals"]:
+                                if "🔥" in signal or "⚡" in signal or "🌟" in signal or "💪" in signal:
+                                    signals_display += f"✅ {signal}<br>"
+                                elif "🩸" in signal or "💀" in signal or "⚠️" in signal or "🔻" in signal:
+                                    signals_display += f"❌ {signal}<br>"
+                                else:
+                                    signals_display += f"• {signal}<br>"
+                            
+                            st.markdown(f"""
+                            <div class="metric-card" style="border-left: 4px solid {'#10b981' if analysis['score'] > 0 else '#ef4444'};">
+                                <h4>Technical Analysis Summary</h4>
+                                <p><strong>Overall Verdict:</strong> {analysis['ranking']}</p>
+                                <p><strong>Signal Score:</strong> {analysis['score']} / 100</p>
+                                <hr style="border-color: var(--border-color);">
+                                <p><strong>Key Triggers Detected:</strong></p>
+                                <p>{signals_display}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.info("No strong directional signals detected at this time.")
+                        
+                        # ===================== AI NEWS SENTIMENT =====================
+                        st.markdown("### 🤖 AI News Sentiment Engine")
+                        
+                        news_list = stock.news
+                        
+                        if not news_list:
+                            st.info("No recent headlines found for this ticker to process.")
+                        else:
+                            positive_count = 0
+                            negative_count = 0
+                            neutral_count = 0
+                            
+                            st.markdown("**Latest Headlines Analysis:**")
+                            
+                            for article in news_list[:5]:
+                                if not isinstance(article, dict):
+                                    continue
+                                
+                                title = article.get("title", "")
+                                publisher = article.get("publisher", "Unknown Source")
+                                
+                                if not title and isinstance(article.get("content"), dict):
+                                    title = article.get("content", {}).get("title", "")
+                                
+                                if not title:
+                                    continue
+                                
+                                result = sentiment_analyzer(title)[0]
+                                label = result["label"].lower()
+                                score = round(result["score"] * 100, 1)
+                                
+                                if "pos" in label:
+                                    bg_color = "#e1f5fe"
+                                    badge = "🟢 POSITIVE"
+                                    positive_count += 1
+                                elif "neg" in label:
+                                    bg_color = "#ffebee"
+                                    badge = "🔴 NEGATIVE"
+                                    negative_count += 1
+                                else:
+                                    bg_color = "#f5f5f5"
+                                    badge = "⚪ NEUTRAL"
+                                    neutral_count += 1
+                                
+                                st.markdown(
+                                    f"""
+                                    <div style="background-color:{bg_color}; padding:12px; border-radius:8px; margin-bottom:10px; border-left: 3px solid {'#10b981' if 'pos' in label else '#ef4444' if 'neg' in label else '#6b7280'};">
+                                        <small style="color:gray;">{publisher}</small><br>
+                                        <strong>{title}</strong><br>
+                                        <span style="font-size:12px; font-weight:bold;">
+                                            AI Assessment: {badge} ({score}%)
+                                        </span>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                            
+                            st.markdown("---")
+                            
+                            # Sentiment summary cards
+                            sent_col1, sent_col2, sent_col3 = st.columns(3)
+                            
+                            sent_col1.metric("Positive News", positive_count)
+                            sent_col2.metric("Negative News", negative_count)
+                            sent_col3.metric("Neutral News", neutral_count)
+                            
+                            if positive_count > negative_count:
+                                st.success("### 🟢 Overall Short-Term Sentiment: **BULLISH**")
+                            elif negative_count > positive_count:
+                                st.error("### 🔴 Overall Short-Term Sentiment: **BEARISH**")
+                            else:
+                                st.warning("### ⚪ Overall Short-Term Sentiment: **NEUTRAL / MIXED**")
+                
                 except Exception as e:
                     st.error(f"An unexpected data connection error occurred: {e}")
+                    st.exception(e)
 
 
 # ============================================================
