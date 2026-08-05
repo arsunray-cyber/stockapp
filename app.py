@@ -1137,33 +1137,40 @@ with tab1:
                         
                         f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
                         
-                        f_col1.metric(
-                            label=tooltip("Current Price", "Latest traded price"),
-                            value=f"₹{info.get('currentPrice', current_price):.2f}" if info.get('currentPrice') else f"₹{current_price:.2f}",
-                            delta=f"{analysis['change_pct']:.2f}%"
-                        )
+                        with f_col1:
+                            st.metric(
+                                label=tooltip("Current Price", "Latest traded price"),
+                                value=f"₹{info.get('currentPrice', current_price):.2f}" if info.get('currentPrice') else f"₹{current_price:.2f}",
+                                delta=f"{analysis['change_pct']:.2f}%"
+                            )
                         
-                        f_col2.metric(
-                            label=tooltip("P/E Ratio", "Price-to-Earnings ratio - valuation metric"),
-                            value=f"{round(info.get('trailingPE', 0), 2)}" if info.get('trailingPE') else "N/A"
-                        )
+                        with f_col2:
+                            st.metric(
+                                label=tooltip("P/E Ratio", "Price-to-Earnings ratio - valuation metric"),
+                                value=f"{round(info.get('trailingPE', 0), 2)}" if info.get('trailingPE') else "N/A"
+                            )
                         
-                        f_col3.metric(
-                            label=tooltip("Market Cap", "Total market value of company's shares"),
-                            value=f"₹{round(info.get('marketCap', 0) / 10000000, 2):,} Cr" if info.get("marketCap") else "N/A"
-                        )
+                        with f_col3:
+                            st.metric(
+                                label=tooltip("Market Cap", "Total market value of company's shares"),
+                                value=f"₹{round(info.get('marketCap', 0) / 10000000, 2):,} Cr" if info.get("marketCap") else "N/A"
+                            )
                         
-                        f_col4.metric(
-                            label=tooltip("RSI (14)", "Relative Strength Index - momentum oscillator (0-100)"),
-                            value=f"{round(float(analysis['rsi']), 1)}" if pd.notna(analysis['rsi']) else "N/A",
-                            delta="Overbought" if pd.notna(analysis['rsi']) and analysis['rsi'] > 70 else "Oversold" if pd.notna(analysis['rsi']) and analysis['rsi'] < 30 else "Neutral"
-                        )
+                        with f_col4:
+                            rsi_val_display = f"{round(float(analysis['rsi']), 1)}" if pd.notna(analysis['rsi']) else "N/A"
+                            rsi_delta = "Overbought (>70)" if pd.notna(analysis['rsi']) and analysis['rsi'] > 70 else "Oversold (<30)" if pd.notna(analysis['rsi']) and analysis['rsi'] < 30 else "Neutral (30-70)"
+                            st.metric(
+                                label=tooltip("RSI (14)", "Relative Strength Index - momentum oscillator (0-100)"),
+                                value=rsi_val_display,
+                                delta=rsi_delta
+                            )
                         
-                        f_col5.metric(
-                            label=tooltip("Signal Score", "Composite technical score (-100 to +100)"),
-                            value=f"{analysis['score']}",
-                            delta=analysis['direction']
-                        )
+                        with f_col5:
+                            st.metric(
+                                label=tooltip("Signal Score", "Composite technical score (-100 to +100)"),
+                                value=f"{analysis['score']}",
+                                delta=analysis['direction']
+                            )
                         
                         # ===================== PRICE PREDICTIONS SECTION =====================
                         st.markdown("### 🎯 AI Price Predictions")
@@ -1470,11 +1477,7 @@ with tab1:
                         tech_col1, tech_col2 = st.columns(2)
                         
                         with tech_col1:
-                            st.markdown("""
-                            <div class="metric-card">
-                                <h4 style="color: var(--primary-color);">📊 Trend Indicators</h4>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.subheader("📊 Trend Indicators")
                             
                             trend_data = []
                             
@@ -1525,15 +1528,14 @@ with tab1:
                                     "Signal": "Bullish" if macd_val > macd_sig else "Bearish"
                                 })
                             
-                            trend_df = pd.DataFrame(trend_data)
-                            st.dataframe(trend_df, use_container_width=True, hide_index=True)
+                            if trend_data:
+                                trend_df = pd.DataFrame(trend_data)
+                                st.dataframe(trend_df, use_container_width=True, hide_index=True)
+                            else:
+                                st.info("No trend indicator data available")
                         
                         with tech_col2:
-                            st.markdown("""
-                            <div class="metric-card">
-                                <h4 style="color: var(--secondary-color);">📈 Momentum Indicators</h4>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.subheader("📈 Momentum Indicators")
                             
                             momentum_data = []
                             
@@ -1614,8 +1616,11 @@ with tab1:
                                     "Signal": mfi_signal
                                 })
                             
-                            momentum_df = pd.DataFrame(momentum_data)
-                            st.dataframe(momentum_df, use_container_width=True, hide_index=True)
+                            if momentum_data:
+                                momentum_df = pd.DataFrame(momentum_data)
+                                st.dataframe(momentum_df, use_container_width=True, hide_index=True)
+                            else:
+                                st.info("No momentum indicator data available")
                         
                         # ===================== DETECTED SIGNALS =====================
                         st.markdown("### 🚨 Detected Technical Signals")
@@ -1631,11 +1636,11 @@ with tab1:
                                     signals_display += f"• {signal}<br>"
                             
                             st.markdown(f"""
-                            <div class="metric-card" style="border-left: 4px solid {'#10b981' if analysis['score'] > 0 else '#ef4444'};">
-                                <h4>Technical Analysis Summary</h4>
+                            <div style="padding: 15px; background-color: #f0fdf4; border-left: 4px solid {'#10b981' if analysis['score'] > 0 else '#ef4444'}; border-radius: 8px; margin: 10px 0;">
+                                <h4 style="margin-top: 0; color: #166534;">Technical Analysis Summary</h4>
                                 <p><strong>Overall Verdict:</strong> {analysis['ranking']}</p>
                                 <p><strong>Signal Score:</strong> {analysis['score']} / 100</p>
-                                <hr style="border-color: var(--border-color);">
+                                <hr style="border-color: #e5e7eb;">
                                 <p><strong>Key Triggers Detected:</strong></p>
                                 <p>{signals_display}</p>
                             </div>
